@@ -1,0 +1,6 @@
+smbus
+RPi.GPIO
+serial
+numpy
+matplotlib
+adafruit-circuitpython-vl53l1x
