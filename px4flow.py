@@ -1,6 +1,4 @@
 import sys
-from threading import Event
-import signal
 from smbus import SMBus
 from serial import Serial
 from numpy import median
@@ -9,7 +7,7 @@ import matplotlib.pyplot as plt
 #import board
 import RPi.GPIO as gpio
 from time import time, sleep
-from math import tan, atan, degrees
+from math import atan, degrees
 
 def shift32(num):
     if num > 2147483648:
@@ -118,7 +116,7 @@ class HCSR04:
         history = [self.distance() for _ in range(10)]
         return median(history)
 
-def onExit(signal, frame):
+def onExit():
     _, ax = plt.subplots()
 
     if sys.argv[1] == "speed":
@@ -145,93 +143,98 @@ def onExit(signal, frame):
     return
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, onExit())
-    onExitEvent = Event()
-    onExitEvent.wait()
-    gpio.setmode(gpio.BCM)
-    px4 = PX4Flow()
-    distanceSensor = HCSR04()
-    #uart = Serial("/dev/serial0", 115200)
+    try:
+        global plotSpeedX, plotSpeedYX, plotSpeedYY, plotDistanceX, plotDistanceYX, plotDistanceYY
+        gpio.setmode(gpio.BCM)
+        px4 = PX4Flow()
+        distanceSensor = HCSR04()
+        #uart = Serial("/dev/serial0", 115200)
 
-    measureSpeed = 5 # sensor pollings per second
+        measureSpeed = 5 # sensor pollings per second
 
-    matrixWidth = 758  #matrix width in pixels
-    matrixHeight = 480  #matrix height in pixels
-    matrixSizeX = 4.51 * 10 ** -3  #matrix size on X axis in meters
-    matrixSizeY = 2.88 * 10 ** -3  #matrix size on Y axis in meters
-    pixelSize = 6 * 10 ** -6  # pixel size in meters
-    focalLength = 16 * 4 * 10 ** -3  # focal length in meters
-    viewAngleX = (2 * degrees(atan(matrixSizeX / (2 * focalLength))))  # view angle of camera on X axis
-    viewAngleY = (2 * degrees(atan(matrixSizeY / (2 * focalLength))))  # view angle of camera on Y axis
+        matrixWidth = 758  #matrix width in pixels
+        matrixHeight = 480  #matrix height in pixels
+        matrixSizeX = 4.51 * 10 ** -3  #matrix size on X axis in meters
+        matrixSizeY = 2.88 * 10 ** -3  #matrix size on Y axis in meters
+        pixelSize = 6 * 10 ** -6  # pixel size in meters
+        focalLength = 16 * 4 * 10 ** -3  # focal length in meters
+        viewAngleX = (2 * degrees(atan(matrixSizeX / (2 * focalLength))))  # view angle of camera on X axis
+        viewAngleY = (2 * degrees(atan(matrixSizeY / (2 * focalLength))))  # view angle of camera on Y axis
 
-    altitude = 1  # altitude in meters
+        altitude = 1  # altitude in meters
 
-    count_x = 0
-    count_y = 0
-    count_time = 0
-    plotSpeedX = []
-    plotSpeedYX = []
-    plotSpeedYY = []
-    plotDistanceX = []
-    plotDistanceYX = []
-    plotDistanceYY = []
+        count_x = 0
+        count_y = 0
+        count_time = 0
+        plotSpeedX = []
+        plotSpeedYX = []
+        plotSpeedYY = []
+        plotDistanceX = []
+        plotDistanceYX = []
+        plotDistanceYY = []
 
-    while True:
-            #getting the height from the sensor
-            '''
-            if count_time == measureSpeed:
-                altitude = round(distanceSensor.distance(), 3)
-                count_time = 0
-            '''
-            altitude = distanceSensor.read_distance_filtered()
+        while True:
+                #getting the height from the sensor
+                '''
+                if count_time == measureSpeed:
+                    altitude = round(distanceSensor.distance(), 3)
+                    count_time = 0
+                '''
+                altitude = distanceSensor.read_distance_filtered()
 
-            #gsd = ((matrixSizeX * 10 ** 3) * altitude * 100) / ((focalLength * 10 ** 3) * matrixWidth) #ground sampling distance in meters/pixel
+                #gsd = ((matrixSizeX * 10 ** 3) * altitude * 100) / ((focalLength * 10 ** 3) * matrixWidth) #ground sampling distance in meters/pixel
 
-            # speed measurement
-            if sys.argv[1] == "speed":
-                x, y = px4.update()[1:3]
-                speedXPixels = x #X speed in pixels
-                speedYPixels = y #Y speed in pixels
-                #speedXM = speedXPixels * (2 * altitude * tan(viewAngleX) + matrixWidth * pixelSize)
-                speedXM = speedXPixels / (16 / (4 * 6) * 1000) * altitude * -3 * measureSpeed
-                #speedYM = speedYPixels * (2 * altitude * tan(viewAngleY) + matrixHeight * pixelSize)
-                speedYM = speedYPixels / (16 / (4 * 6) * 1000) * altitude * -3.25 * measureSpeed
-                print("X:", round(speedXM, 3), "Y:", round(speedYM, 3))
-                print("Растояние:", altitude)
-                plotSpeedX.append[1 / measureSpeed]
-                plotSpeedYX.append[speedXM]
-                plotSpeedYY.append[speedYM]
+                if len(sys.argv) != 2:
+                    sys.exit()
 
-            
-            
-            # distance measurement (prints distance between sensor pollings)
-            elif sys.argv[1] == "distance":
-                x, y = px4.update()[1:3]
-                #distanceX = x * (2 * altitude * tan(viewAngleX) + matrixHeight * pixelSize)
-                distanceX = x / (16 / (4 * 6) * 1000) * altitude * -3
-                #distanceX = x * gsd
-                #distanceY = y * (2 * altitude * tan(viewAngleY) + matrixWidth * pixelSize)
-                distanceY = y / (16 / (4 * 6) * 1000) * altitude * -3.25
-                #distanceY = y * gsd
-                print(x, y)
-                #print("X:", round(distanceX, 3), "Y:", round(distanceY, 3))
-                count_x += distanceX
-                count_y += distanceY
-                print('Счётчик X', round(count_x, 3))
-                print('Счётчик Y', round(count_y, 3))
-                print("Растояние:", altitude)
-                plotDistanceX.append[1 / measureSpeed]
-                plotDistanceYX.append[distanceX]
-                plotDistanceYY.append[distanceY]
+                # speed measurement
+                
+                elif sys.argv[1] == "speed":
+                    x, y = px4.update()[1:3]
+                    speedXPixels = x #X speed in pixels
+                    speedYPixels = y #Y speed in pixels
+                    #speedXM = speedXPixels * (2 * altitude * tan(viewAngleX) + matrixWidth * pixelSize)
+                    speedXM = speedXPixels / (16 / (4 * 6) * 1000) * altitude * -3 * measureSpeed
+                    #speedYM = speedYPixels * (2 * altitude * tan(viewAngleY) + matrixHeight * pixelSize)
+                    speedYM = speedYPixels / (16 / (4 * 6) * 1000) * altitude * -3.25 * measureSpeed
+                    print("X:", round(speedXM, 3), "Y:", round(speedYM, 3))
+                    print("Растояние:", altitude)
+                    plotSpeedX.append(count_time)
+                    plotSpeedYX.append(speedXM)
+                    plotSpeedYY.append(speedYM)
 
-            else:
-                sys.exit()
+                
+                
+                # distance measurement (prints distance between sensor pollings)
+                elif sys.argv[1] == "distance":
+                    x, y = px4.update()[1:3]
+                    #distanceX = x * (2 * altitude * tan(viewAngleX) + matrixHeight * pixelSize)
+                    distanceX = x / (16 / (4 * 6) * 1000) * altitude * -3
+                    #distanceX = x * gsd
+                    #distanceY = y * (2 * altitude * tan(viewAngleY) + matrixWidth * pixelSize)
+                    distanceY = y / (16 / (4 * 6) * 1000) * altitude * -3.25
+                    #distanceY = y * gsd
+                    print(x, y)
+                    #print("X:", round(distanceX, 3), "Y:", round(distanceY, 3))
+                    count_x += distanceX
+                    count_y += distanceY
+                    print('Счётчик X', round(count_x, 3))
+                    print('Счётчик Y', round(count_y, 3))
+                    print("Растояние:", altitude)
+                    plotDistanceX.append(count_time)
+                    plotDistanceYX.append(distanceX)
+                    plotDistanceYY.append(distanceY)
 
-            
+                else:
+                    sys.exit()
 
-            #print distance from sensor
-            '''
-            print(round(distanceSensor.distance(), 3))
-            '''
-            #count_time += 1 #This is the counter of the interval of polling the rangefinder sensor
-            sleep(1 / measureSpeed)
+                
+
+                #print distance from sensor
+                '''
+                print(round(distanceSensor.distance(), 3))
+                '''
+                count_time += 1 / measureSpeed #This is the counter of the interval of polling the rangefinder sensor
+                sleep(1 / measureSpeed)
+    except KeyboardInterrupt:
+        onExit()
