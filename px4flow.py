@@ -3,15 +3,15 @@ from smbus import SMBus
 from serial import Serial
 from numpy import median
 import matplotlib.pyplot as plt
-#import adafruit_vl53l1x
-#import board
+import adafruit_vl53l1x
+import board
 import RPi.GPIO as gpio
 from time import time, sleep
 from math import atan, degrees
 
 def shift32(num):
     if num > 2147483648:
-        return - 4294967296 + num
+        return -4294967296 + num
     return num
 
 
@@ -68,6 +68,15 @@ class PX4Flow:
         quality = shift8(int(data[24], 16))
 
         return frame_count_since_last_readout, pixel_flow_x_integral, pixel_flow_y_integral, gyro_x_rate_integral, gyro_y_rate_integral, gyro_z_rate_integral, integration_timespan, sonar_timestamp, ground_distance, gyro_temperature, quality
+    
+    def update_flow_filtered(self, measureSpeed):
+        measureSpeed /= 5
+        x = [0 for _ in range(5)]
+        y = [0 for _ in range(5)]
+        for i in range(5):
+            x[i], y[i] = self.update()[1:3]
+            sleep(1 / measureSpeed)
+        return median(x) * 5, median(y) * 5
 
 class VL53L1X:
     def __init__(self, distanceMode = 2):
@@ -78,7 +87,7 @@ class VL53L1X:
         self.distance = 0
 
 
-    def measureDistance(self):
+    def distance(self):
         self.BUS.start_ranging()
         tries = 0
         while not self.BUS.data_ready:
@@ -112,7 +121,7 @@ class HCSR04:
         distance = (stop - start) * 17150
         return distance * 10 ** -2
     
-    def read_distance_filtered(self):
+    def distance_filtered(self):
         history = [self.distance() for _ in range(10)]
         return median(history)
 
@@ -161,8 +170,6 @@ if __name__ == "__main__":
         viewAngleX = (2 * degrees(atan(matrixSizeX / (2 * focalLength))))  # view angle of camera on X axis
         viewAngleY = (2 * degrees(atan(matrixSizeY / (2 * focalLength))))  # view angle of camera on Y axis
 
-        altitude = 1  # altitude in meters
-
         count_x = 0
         count_y = 0
         count_time = 0
@@ -174,13 +181,7 @@ if __name__ == "__main__":
         plotDistanceYY = []
 
         while True:
-                #getting the height from the sensor
-                '''
-                if count_time == measureSpeed:
-                    altitude = round(distanceSensor.distance(), 3)
-                    count_time = 0
-                '''
-                altitude = distanceSensor.read_distance_filtered()
+                altitude = distanceSensor.distance_filtered()
 
                 #gsd = ((matrixSizeX * 10 ** 3) * altitude * 100) / ((focalLength * 10 ** 3) * matrixWidth) #ground sampling distance in meters/pixel
 
@@ -190,7 +191,7 @@ if __name__ == "__main__":
                 # speed measurement
                 
                 elif sys.argv[1] == "speed":
-                    x, y = px4.update()[1:3]
+                    x, y = px4.update_flow_filtered(measureSpeed)
                     speedXPixels = x #X speed in pixels
                     speedYPixels = y #Y speed in pixels
                     #speedXM = speedXPixels * (2 * altitude * tan(viewAngleX) + matrixWidth * pixelSize)
@@ -207,7 +208,7 @@ if __name__ == "__main__":
                 
                 # distance measurement (prints distance between sensor pollings)
                 elif sys.argv[1] == "distance":
-                    x, y = px4.update()[1:3]
+                    x, y = px4.update_flow_filtered(measureSpeed)
                     #distanceX = x * (2 * altitude * tan(viewAngleX) + matrixHeight * pixelSize)
                     distanceX = x / (16 / (4 * 6) * 1000) * altitude * -3
                     #distanceX = x * gsd
@@ -228,12 +229,6 @@ if __name__ == "__main__":
                 else:
                     sys.exit()
 
-                
-
-                #print distance from sensor
-                '''
-                print(round(distanceSensor.distance(), 3))
-                '''
                 count_time += 1 / measureSpeed #This is the counter of the interval of polling the rangefinder sensor
                 sleep(1 / measureSpeed)
     except KeyboardInterrupt:
