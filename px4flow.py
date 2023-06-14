@@ -1,13 +1,15 @@
 import sys
 from smbus import SMBus
-from serial import Serial
+#from serial import Serial
 from numpy import median
 import matplotlib.pyplot as plt
-import adafruit_vl53l1x
-import board
+#import adafruit_vl53l1x
+#import board
 import RPi.GPIO as gpio
 from time import time, sleep
 from math import atan, degrees
+from pykalman import KalmanFilter
+import numpy as np
 
 def shift32(num):
     if num > 2147483648:
@@ -68,16 +70,8 @@ class PX4Flow:
         quality = shift8(int(data[24], 16))
 
         return frame_count_since_last_readout, pixel_flow_x_integral, pixel_flow_y_integral, gyro_x_rate_integral, gyro_y_rate_integral, gyro_z_rate_integral, integration_timespan, sonar_timestamp, ground_distance, gyro_temperature, quality
-    
-    def update_flow_filtered(self, measureSpeed):
-        measureSpeed /= 5
-        x = [0 for _ in range(5)]
-        y = [0 for _ in range(5)]
-        for i in range(5):
-            x[i], y[i] = self.update()[1:3]
-            sleep(1 / measureSpeed)
-        return median(x) * 5, median(y) * 5
 
+"""
 class VL53L1X:
     def __init__(self, distanceMode = 2):
         self.i2c = board.I2C()
@@ -102,6 +96,7 @@ class VL53L1X:
             return None
         self.distance = self.distance / 100
         return self.distance
+"""
 
 class HCSR04:
     def __init__(self, trig = 20, echo = 16):
@@ -136,7 +131,7 @@ def onExit():
         ax2 = ax.twinx()
         ax2.plot(plotSpeedX, plotSpeedYY, color = "red")
         ax2.set_ylabel("SpeedY", color = "red")
-        plt.savefig(f"Speed_{time()}.png")
+        plt.savefig(f"Speed_{round(time())}.png")
         return
 
     elif sys.argv[1] == "distance":
@@ -147,7 +142,7 @@ def onExit():
         ax2 = ax.twinx()
         ax2.plot(plotDistanceX, plotDistanceYY, color = "red")
         ax2.set_ylabel("DistanceY", color = "red")
-        plt.savefig(f"Distance_{time()}.png")
+        plt.savefig(f"Distance_{round(time())}.png")
         return
     return
 
@@ -159,7 +154,7 @@ if __name__ == "__main__":
         distanceSensor = HCSR04()
         #uart = Serial("/dev/serial0", 115200)
 
-        measureSpeed = 5 # sensor pollings per second
+        measureSpeed = 10 # sensor pollings per second
 
         matrixWidth = 758  #matrix width in pixels
         matrixHeight = 480  #matrix height in pixels
@@ -180,8 +175,28 @@ if __name__ == "__main__":
         plotDistanceYX = []
         plotDistanceYY = []
 
+        kfx = KalmanFilter(transition_matrices=[1],
+                  observation_matrices=[1],
+                  initial_state_mean=0,
+                  initial_state_covariance=1,
+                  observation_covariance=1,
+                  transition_covariance=0.01)
+        initial_state_x = 0
+        initial_covariance_x = 1
+        kfy = KalmanFilter(transition_matrices=[1],
+                  observation_matrices=[1],
+                  initial_state_mean=0,
+                  initial_state_covariance=1,
+                  observation_covariance=1,
+                  transition_covariance=0.01)
+        initial_state_y = 0
+        initial_covariance_y = 1
+
         while True:
-                altitude = distanceSensor.distance_filtered()
+                try:
+                    altitude = distanceSensor.distance_filtered()
+                except UnboundLocalError:
+                    pass
 
                 #gsd = ((matrixSizeX * 10 ** 3) * altitude * 100) / ((focalLength * 10 ** 3) * matrixWidth) #ground sampling distance in meters/pixel
 
@@ -191,7 +206,26 @@ if __name__ == "__main__":
                 # speed measurement
                 
                 elif sys.argv[1] == "speed":
-                    x, y = px4.update_flow_filtered(measureSpeed)
+                    x, y = px4.update()[1:3]
+
+                    filtered_state_mean_x, filtered_state_covariance_x = kfx.filter_update(
+                        filtered_state_mean = initial_state_x,
+                        filtered_state_covariance = initial_covariance_x,
+                        observation = x
+                    )
+                    initial_state_x = filtered_state_mean_x
+                    initial_covariance_x = filtered_state_covariance_x
+                    x = filtered_state_mean_x.flatten()[0]
+
+                    filtered_state_mean_y, filtered_state_covariance_y = kfy.filter_update(
+                        filtered_state_mean = initial_state_y,
+                        filtered_state_covariance = initial_covariance_y,
+                        observation = y
+                    )
+                    initial_state_y = filtered_state_mean_y
+                    initial_covariance_y = filtered_state_covariance_y
+                    y = filtered_state_mean_y.flatten()[0]
+
                     speedXPixels = x #X speed in pixels
                     speedYPixels = y #Y speed in pixels
                     #speedXM = speedXPixels * (2 * altitude * tan(viewAngleX) + matrixWidth * pixelSize)
@@ -199,7 +233,7 @@ if __name__ == "__main__":
                     #speedYM = speedYPixels * (2 * altitude * tan(viewAngleY) + matrixHeight * pixelSize)
                     speedYM = speedYPixels / (16 / (4 * 6) * 1000) * altitude * -3.25 * measureSpeed
                     print("X:", round(speedXM, 3), "Y:", round(speedYM, 3))
-                    print("Растояние:", altitude)
+                    print("Высота:", altitude)
                     plotSpeedX.append(count_time)
                     plotSpeedYX.append(speedXM)
                     plotSpeedYY.append(speedYM)
@@ -208,7 +242,26 @@ if __name__ == "__main__":
                 
                 # distance measurement (prints distance between sensor pollings)
                 elif sys.argv[1] == "distance":
-                    x, y = px4.update_flow_filtered(measureSpeed)
+                    x, y = px4.update()[1:3]
+
+                    filtered_state_mean_x, filtered_state_covariance_x = kfx.filter_update(
+                        filtered_state_mean = initial_state_x,
+                        filtered_state_covariance = initial_covariance_x,
+                        observation = x
+                    )
+                    initial_state_x = filtered_state_mean_x
+                    initial_covariance_x = filtered_state_covariance_x
+                    x = filtered_state_mean_x.flatten()[0]
+
+                    filtered_state_mean_y, filtered_state_covariance_y = kfy.filter_update(
+                        filtered_state_mean = initial_state_y,
+                        filtered_state_covariance = initial_covariance_y,
+                        observation = y
+                    )
+                    initial_state_y = filtered_state_mean_y
+                    initial_covariance_y = filtered_state_covariance_y
+                    y = filtered_state_mean_y.flatten()[0]
+
                     #distanceX = x * (2 * altitude * tan(viewAngleX) + matrixHeight * pixelSize)
                     distanceX = x / (16 / (4 * 6) * 1000) * altitude * -3
                     #distanceX = x * gsd
@@ -221,7 +274,7 @@ if __name__ == "__main__":
                     count_y += distanceY
                     print('Счётчик X', round(count_x, 3))
                     print('Счётчик Y', round(count_y, 3))
-                    print("Растояние:", altitude)
+                    print("Высота:", altitude)
                     plotDistanceX.append(count_time)
                     plotDistanceYX.append(distanceX)
                     plotDistanceYY.append(distanceY)
