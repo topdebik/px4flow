@@ -10,6 +10,12 @@ from time import time, sleep
 from math import atan, degrees
 from pykalman import KalmanFilter
 import numpy as np
+import rospy
+from clover import srv
+from geometry_msgs.msg import TwistStamped
+from sensor_msgs.msg import Image as ImageMsg
+from cv_bridge import CvBridge
+import cv2
 
 def shift32(num):
     if num > 2147483648:
@@ -100,6 +106,7 @@ class VL53L1X:
 
 class HCSR04:
     def __init__(self, trig = 20, echo = 16):
+        self.distance_count = 0
         self.trig = trig
         self.echo = echo
         gpio.setup(self.trig, gpio.OUT)
@@ -109,16 +116,117 @@ class HCSR04:
         gpio.output(self.trig, gpio.HIGH)
         sleep(0.00001)
         gpio.output(self.trig, gpio.LOW)
+        trigStart = time()
         while gpio.input(self.echo) == gpio.LOW:
             start = time()
+            if start - trigStart >= 0.1:
+                return self.distance_count
         while gpio.input(self.echo) == gpio.HIGH:
             stop = time()
-        distance = (stop - start) * 17150
-        return distance * 10 ** -2
+        self.distance_count = (stop - start) * 17150
+        return self.distance_count * 10 ** -2
     
     def distance_filtered(self):
+        kfd = KalmanFilter(transition_matrices=[1],
+            observation_matrices=[1],
+            initial_state_mean=0,
+            initial_state_covariance=1,
+            observation_covariance=1,
+            transition_covariance=0.01)
+        initial_state_d = 0
+        initial_covariance_d = 1
+
         history = [self.distance() for _ in range(10)]
-        return median(history)
+
+        filtered_state_mean_d, filtered_state_covariance_d = kfd.filter_update(
+            filtered_state_mean = initial_state_d,
+            filtered_state_covariance = initial_covariance_d,
+            observation = history
+        )
+        initial_state_d = filtered_state_mean_d
+        initial_covariance_d = filtered_state_covariance_d
+        distance = filtered_state_mean_d.flatten()[0]
+
+        return distance
+'''
+class VelocityDisplay: 
+    def __init__(self):
+        rospy.init_node('velocity_image_publisher')
+        self.cv_bridge = CvBridge()
+        self.image_publisher = rospy.Publisher('/your_image_topic', ImageMsg, queue_size=1)
+        self.velocity_subscriber = rospy.Subscriber('/your_velocity_topic', TwistStamped, self.velocity_callback)
+    
+    def velocity_callback(self, speedXM, speedYM):
+        velocity_image = self.create_velocity_image(speedXM, speedYM)
+        velocity_image_msg = self.cv_bridge.cv2_to_imgmsg(velocity_image, encoding='mono8')
+        self.image_publisher.publish(velocity_image_msg)
+    
+    def create_velocity_image(self, speedXM, speedYM):
+        linear_x = speedXM
+        linear_y = speedYM
+
+        image_width = 100
+        image_height = 100
+        velocity_image = np.zeros((image_height, image_width), dtype=np.uint8)
+
+        scale_factor = 50
+        normalized_linear_x = int(linear_x * scale_factor + image_width // 2)
+        normalized_linear_y = int(linear_y * scale_factor + image_height // 2)
+
+        velocity_image[normalized_linear_y, normalized_linear_x] = 255
+
+        return velocity_image
+
+    def run(self):
+        rospy.spin()
+'''
+'''
+class WebApp:
+    def __init__(self):
+        self.app = Flask('velocity')
+        self.app.route('/')(self.index)
+
+    def index(self):
+        with open('image.jpg', 'rb') as f:
+            image_data = f.read()
+        encoded_image = base64.b64encode(image_data).decode('utf-8')
+
+        return render_template('index.html', image_data=encoded_image)
+
+    def run(self):
+        self.app.run()
+'''
+
+
+def generate_speed_image(width, height, speed_x, speed_y, filename="image.jpg"):
+    image = Image.new("RGB", (width, height), (255, 255, 255))
+
+    pixels = image.load()
+
+   
+    for x in range(width):
+        for y in range(height):
+            r = (x * speed_x) % 256
+            g = (y * speed_y) % 256
+            b = (x * y) % 256
+
+            pixels[x, y] = (r, g, b)
+
+    draw = ImageDraw.Draw(image)
+    scale_width = 20
+    scale_height = height // 2 
+    min_speed = 0
+    max_speed = height
+    step = max_speed // scale_height
+    for i in range(scale_height + 1):
+        speed = min_speed + i * step
+        text = str(speed)
+        text_width, text_height = draw.textsize(text)
+        draw.text((width - scale_width - text_width, i * step - text_height // 2), text, fill=(0, 0, 0))
+
+    
+    image.save(filename, "JPEG")
+
 
 def onExit():
     _, ax = plt.subplots()
@@ -152,6 +260,8 @@ if __name__ == "__main__":
         gpio.setmode(gpio.BCM)
         px4 = PX4Flow()
         distanceSensor = HCSR04()
+        #web = WebApp()
+        display = VelocityDisplay()
         #uart = Serial("/dev/serial0", 115200)
 
         measureSpeed = 10 # sensor pollings per second
@@ -234,11 +344,22 @@ if __name__ == "__main__":
                     speedYM = speedYPixels / (16 / (4 * 6) * 1000) * altitude * -3.25 * measureSpeed
                     print("X:", round(speedXM, 3), "Y:", round(speedYM, 3))
                     print("Высота:", altitude)
+                    
+                    #display.send_velocity(round(speedXM, 3), round(speedYM, 3))
+                    '''
+                    data = TwistStamped()
+                    data.header.stamp = rospy.Time.now()
+                    data.twist.linear.x = speedXM
+                    data.twist.linear.y = speedYM
+                    '''
+                    #display.velocity_callback(speedXM, speedYM)
+                    #generate_speed_image(500, 500, int(speedXM), int(speedYM))
                     plotSpeedX.append(count_time)
                     plotSpeedYX.append(speedXM)
                     plotSpeedYY.append(speedYM)
 
-                
+                    
+                    #display.run()
                 
                 # distance measurement (prints distance between sensor pollings)
                 elif sys.argv[1] == "distance":
