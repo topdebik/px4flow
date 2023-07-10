@@ -16,6 +16,7 @@ from geometry_msgs.msg import TwistStamped
 from sensor_msgs.msg import Image as ImageMsg
 from cv_bridge import CvBridge
 import cv2
+from std_msgs.msg import String
 
 def shift32(num):
     if num > 2147483648:
@@ -148,6 +149,7 @@ class HCSR04:
         distance = filtered_state_mean_d.flatten()[0]
 
         return distance
+
 '''
 class VelocityDisplay: 
     def __init__(self):
@@ -260,8 +262,10 @@ if __name__ == "__main__":
         gpio.setmode(gpio.BCM)
         px4 = PX4Flow()
         distanceSensor = HCSR04()
+        rospy.init_node('message_publisher')
+        foo_pub = rospy.Publisher('/vilocity', String, queue_size=10)
         #web = WebApp()
-        display = VelocityDisplay()
+        #display = VelocityDisplay()
         #uart = Serial("/dev/serial0", 115200)
 
         measureSpeed = 10 # sensor pollings per second
@@ -284,6 +288,10 @@ if __name__ == "__main__":
         plotDistanceX = []
         plotDistanceYX = []
         plotDistanceYY = []
+        displayX = [0, 0, 0, 0, 0]
+        displayY = [0, 0, 0, 0, 0]
+        i = 0
+
 
         kfx = KalmanFilter(transition_matrices=[1],
                   observation_matrices=[1],
@@ -342,8 +350,8 @@ if __name__ == "__main__":
                     speedXM = speedXPixels / (16 / (4 * 6) * 1000) * altitude * -3 * measureSpeed
                     #speedYM = speedYPixels * (2 * altitude * tan(viewAngleY) + matrixHeight * pixelSize)
                     speedYM = speedYPixels / (16 / (4 * 6) * 1000) * altitude * -3.25 * measureSpeed
-                    print("X:", round(speedXM, 3), "Y:", round(speedYM, 3))
-                    print("Высота:", altitude)
+                    #print("X:", round(speedXM, 3), "Y:", round(speedYM, 3))
+                    #print("Высота:", altitude)
                     
                     #display.send_velocity(round(speedXM, 3), round(speedYM, 3))
                     '''
@@ -358,6 +366,14 @@ if __name__ == "__main__":
                     plotSpeedYX.append(speedXM)
                     plotSpeedYY.append(speedYM)
 
+                    displayX[i % 5] = speedXM
+                    displayY[i % 5] = speedYM 
+
+                    i += 1
+                    if i % 5 == 0:
+                        data_as = f'X: {round(median(displayX),3)}  Y: {round(median(displayY), 3)}\n'
+                        print(data_as)
+                        foo_pub.publish(data=data_as)
                     
                     #display.run()
                 
