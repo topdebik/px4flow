@@ -1,6 +1,5 @@
 import sys
 from smbus import SMBus
-#from serial import Serial
 from numpy import median
 import matplotlib.pyplot as plt
 #import adafruit_vl53l1x
@@ -11,12 +10,10 @@ from math import atan, degrees
 from pykalman import KalmanFilter
 import numpy as np
 import rospy
-from clover import srv
-from geometry_msgs.msg import TwistStamped
-from sensor_msgs.msg import Image as ImageMsg
+from std_msgs.msg import String as msgString
+from sensor_msgs.msg import Image as msgImage
 from cv_bridge import CvBridge
-import cv2
-from std_msgs.msg import String
+import cv2 as cv
 
 def shift32(num):
     if num > 2147483648:
@@ -150,111 +147,9 @@ class HCSR04:
 
         return distance
 
-'''
-class VelocityDisplay: 
-    def __init__(self):
-        rospy.init_node('velocity_image_publisher')
-        self.cv_bridge = CvBridge()
-        self.image_publisher = rospy.Publisher('/your_image_topic', ImageMsg, queue_size=1)
-        self.velocity_subscriber = rospy.Subscriber('/your_velocity_topic', TwistStamped, self.velocity_callback)
-    
-    def velocity_callback(self, speedXM, speedYM):
-        velocity_image = self.create_velocity_image(speedXM, speedYM)
-        velocity_image_msg = self.cv_bridge.cv2_to_imgmsg(velocity_image, encoding='mono8')
-        self.image_publisher.publish(velocity_image_msg)
-    
-    def create_velocity_image(self, speedXM, speedYM):
-        linear_x = speedXM
-        linear_y = speedYM
-
-        image_width = 100
-        image_height = 100
-        velocity_image = np.zeros((image_height, image_width), dtype=np.uint8)
-
-        scale_factor = 50
-        normalized_linear_x = int(linear_x * scale_factor + image_width // 2)
-        normalized_linear_y = int(linear_y * scale_factor + image_height // 2)
-
-        velocity_image[normalized_linear_y, normalized_linear_x] = 255
-
-        return velocity_image
-
-    def run(self):
-        rospy.spin()
-'''
-'''
-class WebApp:
-    def __init__(self):
-        self.app = Flask('velocity')
-        self.app.route('/')(self.index)
-
-    def index(self):
-        with open('image.jpg', 'rb') as f:
-            image_data = f.read()
-        encoded_image = base64.b64encode(image_data).decode('utf-8')
-
-        return render_template('index.html', image_data=encoded_image)
-
-    def run(self):
-        self.app.run()
-'''
-
-
-def generate_speed_image(width, height, speed_x, speed_y, filename="image.jpg"):
-    image = Image.new("RGB", (width, height), (255, 255, 255))
-
-    pixels = image.load()
-
-   
-    for x in range(width):
-        for y in range(height):
-            r = (x * speed_x) % 256
-            g = (y * speed_y) % 256
-            b = (x * y) % 256
-
-            pixels[x, y] = (r, g, b)
-
-    draw = ImageDraw.Draw(image)
-    scale_width = 20
-    scale_height = height // 2 
-    min_speed = 0
-    max_speed = height
-    step = max_speed // scale_height
-    for i in range(scale_height + 1):
-        speed = min_speed + i * step
-        text = str(speed)
-        text_width, text_height = draw.textsize(text)
-        draw.text((width - scale_width - text_width, i * step - text_height // 2), text, fill=(0, 0, 0))
-
-    
-    image.save(filename, "JPEG")
-
 
 def onExit():
-    _, ax = plt.subplots()
-
-    if sys.argv[1] == "speed":
-        global plotSpeedX, plotSpeedYX, plotSpeedYY
-        ax.plot(plotSpeedX, plotSpeedYX, color = "blue")
-        ax.set_xlabel("Time")
-        ax.set_ylabel("SpeedX", color = "blue")
-        ax2 = ax.twinx()
-        ax2.plot(plotSpeedX, plotSpeedYY, color = "red")
-        ax2.set_ylabel("SpeedY", color = "red")
-        plt.savefig(f"Speed_{round(time())}.png")
-        return
-
-    elif sys.argv[1] == "distance":
-        global plotDistanceX, plotDistanceYX, plotDistanceYY
-        ax.plot(plotDistanceX, plotDistanceYX, color = "blue")
-        ax.set_xlabel("Time")
-        ax.set_ylabel("DistanceX", color = "blue")
-        ax2 = ax.twinx()
-        ax2.plot(plotDistanceX, plotDistanceYY, color = "red")
-        ax2.set_ylabel("DistanceY", color = "red")
-        plt.savefig(f"Distance_{round(time())}.png")
-        return
-    return
+    pass
 
 if __name__ == "__main__":
     try:
@@ -262,13 +157,16 @@ if __name__ == "__main__":
         gpio.setmode(gpio.BCM)
         px4 = PX4Flow()
         distanceSensor = HCSR04()
-        rospy.init_node('message_publisher')
-        foo_pub = rospy.Publisher('/vilocity', String, queue_size=10)
-        #web = WebApp()
-        #display = VelocityDisplay()
-        #uart = Serial("/dev/serial0", 115200)
+        rospy.init_node('my_ros_node')
+        foo_pub1 = rospy.Publisher('/velocityString', msgString, queue_size = 2)
+
+        foo_pub = rospy.Publisher('/velocityImage', msgImage, queue_size = 2)
+        bridge = CvBridge()
+        fig, ax = plt.subplots()
+        ax2 = ax.twinx()
 
         measureSpeed = 10 # sensor pollings per second
+        measurementTime = time()
 
         matrixWidth = 758  #matrix width in pixels
         matrixHeight = 480  #matrix height in pixels
@@ -288,10 +186,6 @@ if __name__ == "__main__":
         plotDistanceX = []
         plotDistanceYX = []
         plotDistanceYY = []
-        displayX = [0, 0, 0, 0, 0]
-        displayY = [0, 0, 0, 0, 0]
-        i = 0
-
 
         kfx = KalmanFilter(transition_matrices=[1],
                   observation_matrices=[1],
@@ -316,7 +210,7 @@ if __name__ == "__main__":
                 except UnboundLocalError:
                     pass
 
-                #gsd = ((matrixSizeX * 10 ** 3) * altitude * 100) / ((focalLength * 10 ** 3) * matrixWidth) #ground sampling distance in meters/pixel
+                gsd = (4.51 * altitude * 100) / (16 * 4 * 758 / 4) #ground sampling distance in meters/pixel
 
                 if len(sys.argv) != 2:
                     sys.exit()
@@ -324,7 +218,9 @@ if __name__ == "__main__":
                 # speed measurement
                 
                 elif sys.argv[1] == "speed":
+                    lastMeasurementTime = measurementTime
                     x, y = px4.update()[1:3]
+                    measurementTime = time()
 
                     filtered_state_mean_x, filtered_state_covariance_x = kfx.filter_update(
                         filtered_state_mean = initial_state_x,
@@ -346,36 +242,38 @@ if __name__ == "__main__":
 
                     speedXPixels = x #X speed in pixels
                     speedYPixels = y #Y speed in pixels
-                    #speedXM = speedXPixels * (2 * altitude * tan(viewAngleX) + matrixWidth * pixelSize)
-                    speedXM = speedXPixels / (16 / (4 * 6) * 1000) * altitude * -3 * measureSpeed
-                    #speedYM = speedYPixels * (2 * altitude * tan(viewAngleY) + matrixHeight * pixelSize)
-                    speedYM = speedYPixels / (16 / (4 * 6) * 1000) * altitude * -3.25 * measureSpeed
-                    #print("X:", round(speedXM, 3), "Y:", round(speedYM, 3))
+                    speedXMgsd = speedXPixels * gsd * -1 / (measurementTime - lastMeasurementTime)
+                    speedXM = speedXPixels / (16 / (4 * 6) * 1000) * altitude * -3 / (measurementTime - lastMeasurementTime)
+                    speedYMgsd = speedYPixels * gsd * -1 / (measurementTime - lastMeasurementTime)
+                    speedYM = speedYPixels / (16 / (4 * 6) * 1000) * altitude * -3.25 / (measurementTime - lastMeasurementTime)
+                    #print("X:", round(speedXM - speedXMgsd, 3), "Y:", round(speedYM - speedYMgsd, 3))
                     #print("Высота:", altitude)
                     
-                    #display.send_velocity(round(speedXM, 3), round(speedYM, 3))
-                    '''
-                    data = TwistStamped()
-                    data.header.stamp = rospy.Time.now()
-                    data.twist.linear.x = speedXM
-                    data.twist.linear.y = speedYM
-                    '''
-                    #display.velocity_callback(speedXM, speedYM)
-                    #generate_speed_image(500, 500, int(speedXM), int(speedYM))
+                    """
                     plotSpeedX.append(count_time)
                     plotSpeedYX.append(speedXM)
                     plotSpeedYY.append(speedYM)
 
-                    displayX[i % 5] = speedXM
-                    displayY[i % 5] = speedYM 
+                    ax.plot(plotSpeedX, plotSpeedYX, color = "blue")
+                    ax.set_xlabel("Time")
+                    ax.set_ylabel("SpeedX", color = "blue")
+                    ax2.plot(plotSpeedX, plotSpeedYY, color = "red")
+                    ax2.set_ylabel("SpeedY", color = "red")
+                    fig.tight_layout()
+                    fig.canvas.draw()
+                    img = cv.cvtColor(np.fromstring(fig.canvas.tostring_rgb(), dtype = np.uint8, sep = "").reshape(fig.canvas.get_width_height()[::-1] + (3,)), cv.COLOR_RGB2BGR)
+                    data_as = bridge.cv2_to_imgmsg(img, "bgr8")
+                    data_as.header.frame_id = "0"
+                    foo_pub.publish(data_as)
+                    """
 
-                    i += 1
-                    if i % 5 == 0:
-                        data_as = f'X: {round(median(displayX),3)}  Y: {round(median(displayY), 3)}\n'
-                        print(data_as)
-                        foo_pub.publish(data=data_as)
                     
-                    #display.run()
+                    data_as = f'X: {round(speedXMgsd, 3)}  Y: {round(speedYMgsd, 3)}'
+                    sys.stdout.write("\r" + "GSD  " + "X: " + "%.3f" % round(speedXMgsd, 3) + " Y: " + "%.3f" % round(speedYMgsd, 3) + "    FORM  " + "X: " + "%.3f" % round(speedXM, 3) + " Y: " + "%.3f" % round(speedYM, 3) + " " * 4)
+                    sys.stdout.flush()
+                    foo_pub1.publish(data_as)
+                    
+                    
                 
                 # distance measurement (prints distance between sensor pollings)
                 elif sys.argv[1] == "distance":
@@ -419,7 +317,7 @@ if __name__ == "__main__":
                 else:
                     sys.exit()
 
-                count_time += 1 / measureSpeed #This is the counter of the interval of polling the rangefinder sensor
+                count_time += (measurementTime - lastMeasurementTime) #This is the counter of the interval of polling the rangefinder sensor
                 sleep(1 / measureSpeed)
     except KeyboardInterrupt:
         onExit()
