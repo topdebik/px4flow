@@ -5,3 +5,4 @@ numpy
 matplotlib
 adafruit-circuitpython-vl53l1x
 pykalman
+opencv-python
