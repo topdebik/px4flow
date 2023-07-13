@@ -1,9 +1,10 @@
 import adafruit_vl53l1x
 import board
+from time import sleep
 
 
 class VL53L1X:
-    def __init__(self, distanceMode = 2):
+    def __init__(self, distanceMode=2):
         self.i2c = board.I2C()
         self.BUS = adafruit_vl53l1x.VL53L1X(self.i2c)
         self.BUS.distance_mode = distanceMode
