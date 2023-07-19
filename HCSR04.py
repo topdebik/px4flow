@@ -5,12 +5,13 @@ from time import time, sleep
 
 class HCSR04:
     def __init__(self, trig=20, echo=16):
-        self.distance = 0
         self.trig = trig
         self.echo = echo
         gpio.setup(self.trig, gpio.OUT)
         gpio.setup(self.echo, gpio.IN)
         self.kfd = kf()
+
+        self.distance = 0
 
     def get_distance(self):
         gpio.output(self.trig, gpio.HIGH)
