@@ -2,9 +2,9 @@ from serial import Serial
 from kf import kf
 
 
-class RF03:
+class TF03:
     def __init__(self, port="/dev/ttyAMA0"):
-        self.BUS = Serial(port, 115200, timeout=0.5)
+        self.BUS = Serial(port, 115200, timeout=0.2)
         self.kfd = kf()
 
         self.distance = 0
@@ -14,8 +14,11 @@ class RF03:
         self.BUS.read_until(b"\x59")
         data = self.BUS.read(8)
 
+        if len(data) < 8:
+            return
+
         if data[3] + data[4] * 2 ** 8 < 40: #bad data
-            return self.distance
+            return self.distance * 10 ** -2
         
         self.distance = data[1] + data[2] * 2 ** 8
         return self.distance * 10 ** -2

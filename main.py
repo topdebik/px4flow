@@ -5,7 +5,7 @@ import rospy
 from std_msgs.msg import String as msgString
 from sensor_msgs.msg import Image as msgImage
 from px4flow import PX4Flow
-from HCSR04 import HCSR04
+from TF03 import TF03
 from kf import kf
 from graph import graph
 
@@ -14,7 +14,7 @@ if __name__ == "__main__":
     global plotSpeedX, plotSpeedYX, plotSpeedYY, plotDistanceX, plotDistanceYX, plotDistanceYY
     gpio.setmode(gpio.BCM)
     px4 = PX4Flow()
-    distanceSensor = HCSR04()
+    distanceSensor = TF03()
     graph = graph()
     rospy.init_node('my_ros_node')
     foo_pub1 = rospy.Publisher('/velocityString', msgString, queue_size=1)
@@ -35,6 +35,7 @@ if __name__ == "__main__":
             gsd = 4.51 * ((altitude * 10 ** 3) / (12 * 4)) / (758 / 4) * 10 ** -3 #ground sampling distance in meters/pixel
 
             if len(sys.argv) != 2:
+                print("available args: speed, distance")
                 sys.exit()
 
             # speed measurement
@@ -80,6 +81,7 @@ if __name__ == "__main__":
                 print("Высота:", altitude)
 
             else:
+                print("available args: speed, distance")
                 sys.exit()
 
             count_time += (measurementTime - lastMeasurementTime) #This is the counter of the interval of polling the rangefinder sensor
