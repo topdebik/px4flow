@@ -1,3 +1,5 @@
+#! /usr/bin/env python3
+
 import sys
 import RPi.GPIO as gpio
 from time import time, sleep
@@ -5,7 +7,7 @@ import rospy
 from std_msgs.msg import String as msgString
 from sensor_msgs.msg import Image as msgImage
 from px4flow import PX4Flow
-from TF03 import TF03
+from HCSR04 import HCSR04
 from kf import kf
 from graph import graph
 
@@ -14,7 +16,7 @@ if __name__ == "__main__":
     global plotSpeedX, plotSpeedYX, plotSpeedYY, plotDistanceX, plotDistanceYX, plotDistanceYY
     gpio.setmode(gpio.BCM)
     px4 = PX4Flow()
-    distanceSensor = TF03()
+    distanceSensor = HCSR04()
     graph = graph()
     rospy.init_node('my_ros_node')
     foo_pub1 = rospy.Publisher('/velocityString', msgString, queue_size=1)
@@ -26,21 +28,19 @@ if __name__ == "__main__":
 
     count_x = 0
     count_y = 0
+    count_x_gsd = 0
+    count_y_gsd = 0
 
     kfx = kf()
     kfy = kf()
 
     while True:
-            altitude = distanceSensor.get_distance_filtered()
-            gsd = 4.51 * ((altitude * 10 ** 3) / (12 * 4)) / (758 / 4) * 10 ** -3 #ground sampling distance in meters/pixel
-
-            if len(sys.argv) != 2:
-                print("available args: speed, distance")
-                sys.exit()
+            altitude = distanceSensor.get_distance()
+            gsd = 4.51 * ((altitude * 10 ** 3) / 12) / (758 / 4) * 10 ** -3 #ground sampling distance in meters/pixel
 
             # speed measurement
             
-            elif sys.argv[1] == "speed":
+            if len(sys.argv) == 1:
                 lastMeasurementTime = measurementTime
                 x, y = px4.update()[1:3]
                 measurementTime = time()
@@ -65,23 +65,24 @@ if __name__ == "__main__":
                 
             # distance measurement (prints distance between sensor pollings)
             elif sys.argv[1] == "distance":
+                lastMeasurementTime = measurementTime
                 x, y = px4.update()[1:3]
+                measurementTime = time()
                 x = kfx.filter_value(x)
                 y = kfy.filter_value(y)
+                distanceXgsd = x * gsd
                 distanceX = x / (16 / (4 * 6) * 1000) * altitude * -3
-                #distanceX = x * gsd
+                distanceYgsd = y * gsd
                 distanceY = y / (16 / (4 * 6) * 1000) * altitude * -3.25
-                #distanceY = y * gsd
-                print(x, y)
-                #print("X:", round(distanceX, 3), "Y:", round(distanceY, 3))
+                count_x_gsd += distanceXgsd
+                count_y_gsd += distanceYgsd
                 count_x += distanceX
                 count_y += distanceY
-                print('Счётчик X', round(count_x, 3))
-                print('Счётчик Y', round(count_y, 3))
-                print("Высота:", altitude)
+                sys.stdout.write("\r" + "GSD  " + "X: " + "%.3f" % round(distanceXgsd, 3) + " Y: " + "%.3f" % round(distanceYgsd, 3) + "    FORM  " + "X: " + "%.3f" % round(distanceX, 3) + " Y: " + "%.3f" % round(distanceY, 3) + "    COUNTER_GSD  " + "X: " + "%.3f" % round(count_x_gsd, 3) + " Y: " + "%.3f" % round(count_y_gsd, 3) + "    COUNTER_FORM  " + "X: " + "%.3f" % round(count_x, 3) + " Y: " + "%.3f" % round(count_y, 3) + "    ALT  " + "%.3f" % round(altitude, 3) + " " * 4)
+                sys.stdout.flush()
 
             else:
-                print("available args: speed, distance")
+                print("available args: distance")
                 sys.exit()
 
             count_time += (measurementTime - lastMeasurementTime) #This is the counter of the interval of polling the rangefinder sensor
