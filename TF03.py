@@ -4,7 +4,7 @@ from kf import kf
 
 class TF03:
     def __init__(self, port="/dev/ttyAMA0"):
-        self.BUS = Serial(port, 115200, timeout=0.2)
+        self.BUS = Serial(port, 115200, timeout=0.05)
         self.kfd = kf()
 
         self.distance = 0
@@ -15,12 +15,13 @@ class TF03:
         data = self.BUS.read(8)
 
         if len(data) < 8:
-            return
+            return self.distance * 10 ** -2
 
         if data[3] + data[4] * 2 ** 8 < 40: #bad data
             return self.distance * 10 ** -2
-        
         self.distance = data[1] + data[2] * 2 ** 8
+        if self.distance == None:
+            print(data)
         return self.distance * 10 ** -2
 
     def get_distance_filtered(self):

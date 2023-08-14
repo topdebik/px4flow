@@ -1,11 +1,13 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 
 import sys
 import RPi.GPIO as gpio
 from time import time, sleep
 import rospy
-from std_msgs.msg import String as msgString
+from json import dumps
+from std_msgs.msg import String
 from sensor_msgs.msg import Image as msgImage
+from geometry_msgs.msg import TwistStamped
 from px4flow import PX4Flow
 from TF03 import TF03
 from kf import kf
@@ -19,8 +21,8 @@ if __name__ == "__main__":
     distanceSensor = TF03()
     graph = graph()
     rospy.init_node('px4flow_node')
-    foo_pub1 = rospy.Publisher('/px4flow/velocityString', msgString, queue_size=1)
-    foo_pub = rospy.Publisher('/px4flow/velocityImage', msgImage, queue_size=1)
+    textTopic = rospy.Publisher('/px4flow/velocityString', String, queue_size=1)
+    graphTopic = rospy.Publisher('/px4flow/velocityImage', msgImage, queue_size=1)
 
     measureSpeed = 10 # sensor pollings per second
     measurementTime = time()
@@ -33,6 +35,9 @@ if __name__ == "__main__":
 
     kfx = kf()
     kfy = kf()
+
+    kfx_gps = kf()
+    kfy_gps = kf()
 
     while True:
             altitude = distanceSensor.get_distance()
@@ -55,13 +60,62 @@ if __name__ == "__main__":
                 speedform = (speedXform ** 2 + speedYform ** 2) ** 0.5
                 
                 """
-                foo_pub.publish(graph.update(x, y, count_time))
+                graphTopic.publish(graph.update(x, y, count_time))
                 """
 
-                data_as = f'X: {round(speedXgsd, 3)}  Y: {round(speedYgsd, 3)}'
-                sys.stdout.write("\r" + "GSD  " + "X: " + "%.3f" % round(speedXgsd, 3) + " Y: " + "%.3f" % round(speedYgsd, 3) + " TOTAL: " + "%.3f" % round(speedgsd, 3) + "    FORM  " + "X: " + "%.3f" % round(speedXform, 3) + " Y: " + "%.3f" % round(speedYform, 3) + " TOTAL: " + "%.3f" % round(speedform, 3) + "    ALT  " + "%.3f" % round(altitude, 3) + " " * 4)
+                gps = rospy.wait_for_message("/mavros/global_position/raw/gps_vel", TwistStamped, timeout=0.5).twist.linear
+
+                x_gps = kfx_gps.filter_value(gps.x)
+                y_gps = kfy_gps.filter_value(gps.y)
+
+                topicData = "GSD  " + "X: " + "%.3f" % round(speedXgsd, 3) + " Y: " + "%.3f" % round(speedYgsd, 3) + " TOTAL: " + "%.3f" % round(speedgsd, 3) + \
+                            "    FORM  " + "X: " + "%.3f" % round(speedXform, 3) + " Y: " + "%.3f" % round(speedYform, 3) + " TOTAL: " + "%.3f" % round(speedform, 3) + \
+                            "    GPS  " + "X: " + "%.3f" % round(x_gps, 3) + " Y: " + "%.3f" % round(y_gps, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3) + \
+                            "    DIFF GPS/GSD  " + "X: " +"%.3f" % round(x_gps - speedXgsd) + " Y: " + "%.3f" % round(y_gps - speedYgsd, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3) + \
+                            "    DIFF GPS/FORM  " + "X: " +"%.3f" % round(x_gps - speedXform) + " Y: " + "%.3f" % round(y_gps - speedYform, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3) + \
+                            "    ALT  " + "%.3f" % round(altitude, 3) + \
+                            " " * 4
+
+                sys.stdout.write("\r" + \
+                                "GSD  " + "X: " + "%.3f" % round(speedXgsd, 3) + " Y: " + "%.3f" % round(speedYgsd, 3) + " TOTAL: " + "%.3f" % round(speedgsd, 3) + \
+                                "    FORM  " + "X: " + "%.3f" % round(speedXform, 3) + " Y: " + "%.3f" % round(speedYform, 3) + " TOTAL: " + "%.3f" % round(speedform, 3) + \
+                                "    GPS  " + "X: " + "%.3f" % round(x_gps, 3) + " Y: " + "%.3f" % round(y_gps, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3) + \
+                                "    DIFF GPS/GSD  " + "X: " +"%.3f" % round(x_gps - speedXgsd) + " Y: " + "%.3f" % round(y_gps - speedYgsd, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3) + \
+                                "    DIFF GPS/FORM  " + "X: " +"%.3f" % round(x_gps - speedXform) + " Y: " + "%.3f" % round(y_gps - speedYform, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3) + \
+                                "    ALT  " + "%.3f" % round(altitude, 3) + \
+                                " " * 4)
                 sys.stdout.flush()
-                foo_pub1.publish(data_as)
+                '''
+                topicData = json.dumps({
+                    "GSD": {
+                        "X": "%.3f" % round(speedXgsd, 3),
+                        "Y": "%.3f" % round(speedYgsd, 3),
+                        "TOTAL": "%.3f" % round(speedgsd, 3)
+                        },
+                    "FORM": {
+                        "X": "%.3f" % round(speedXform, 3),
+                        "Y": "%.3f" % round(speedYform, 3),
+                        "TOTAL": "%.3f" % round(speedform, 3)
+                        },
+                    "GPS": {
+                        "X": "%.3f" % round(x_gps, 3),
+                        "Y": "%.3f" % round(y_gps, 3),
+                        "TOTAL": "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3)
+                        },
+                    "DIFF GPS/GSD": {
+                        "X": "%.3f" % round(x_gps - speedXgsd, 3),
+                        "Y": "%.3f" % round(y_gps - speedYgsd, 3),
+                        "TOTAL": "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3)
+                        },
+                    "DIFF GPS/FORM": {
+                        "X": "%.3f" % round(x_gps - speedXform, 3),
+                        "Y": "%.3f" % round(y_gps - speedYform, 3),
+                        "TOTAL": "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3)
+                        },
+                    "ALT": "%.3f" % round(altitude, 3)
+                })
+                '''
+                textTopic.publish(topicData)
                 
                 
             # distance measurement (prints distance between sensor pollings)
@@ -81,7 +135,13 @@ if __name__ == "__main__":
                 count_x_form += distanceXform
                 count_y_form += distanceYform
 
-                sys.stdout.write("\r" + "GSD  " + "X: " + "%.3f" % round(distanceXgsd, 3) + " Y: " + "%.3f" % round(distanceYgsd, 3) + "    FORM  " + "X: " + "%.3f" % round(distanceXform, 3) + " Y: " + "%.3f" % round(distanceYform, 3) + "    COUNTER_GSD  " + "X: " + "%.3f" % round(count_x_gsd, 3) + " Y: " + "%.3f" % round(count_y_gsd, 3) + "    COUNTER_FORM  " + "X: " + "%.3f" % round(count_x_form, 3) + " Y: " + "%.3f" % round(count_y_form, 3) + "    ALT  " + "%.3f" % round(altitude, 3) + " " * 4)
+                sys.stdout.write("\r" + \
+                                "GSD  " + "X: " + "%.3f" % round(distanceXgsd, 3) + " Y: " + "%.3f" % round(distanceYgsd, 3) + \
+                                "    FORM  " + "X: " + "%.3f" % round(distanceXform, 3) + " Y: " + "%.3f" % round(distanceYform, 3) + \
+                                "    COUNTER_GSD  " + "X: " + "%.3f" % round(count_x_gsd, 3) + " Y: " + "%.3f" % round(count_y_gsd, 3) + \
+                                "    COUNTER_FORM  " + "X: " + "%.3f" % round(count_x_form, 3) + " Y: " + "%.3f" % round(count_y_form, 3) + \
+                                "    ALT  " + "%.3f" % round(altitude, 3) + \
+                                " " * 4)
                 sys.stdout.flush()
 
             else:
