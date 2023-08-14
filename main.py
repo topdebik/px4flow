@@ -7,7 +7,7 @@ import rospy
 from std_msgs.msg import String as msgString
 from sensor_msgs.msg import Image as msgImage
 from px4flow import PX4Flow
-from HCSR04 import HCSR04
+from TF03 import TF03
 from kf import kf
 from graph import graph
 
@@ -16,18 +16,18 @@ if __name__ == "__main__":
     global plotSpeedX, plotSpeedYX, plotSpeedYY, plotDistanceX, plotDistanceYX, plotDistanceYY
     gpio.setmode(gpio.BCM)
     px4 = PX4Flow()
-    distanceSensor = HCSR04()
+    distanceSensor = TF03()
     graph = graph()
-    rospy.init_node('my_ros_node')
-    foo_pub1 = rospy.Publisher('/velocityString', msgString, queue_size=1)
-    foo_pub = rospy.Publisher('/velocityImage', msgImage, queue_size=1)
+    rospy.init_node('px4flow_node')
+    foo_pub1 = rospy.Publisher('/px4flow/velocityString', msgString, queue_size=1)
+    foo_pub = rospy.Publisher('/px4flow/velocityImage', msgImage, queue_size=1)
 
     measureSpeed = 10 # sensor pollings per second
     measurementTime = time()
     count_time = 0
 
-    count_x = 0
-    count_y = 0
+    count_x_form = 0
+    count_y_form = 0
     count_x_gsd = 0
     count_y_gsd = 0
 
@@ -46,19 +46,20 @@ if __name__ == "__main__":
                 measurementTime = time()
                 x = kfx.filter_value(x)
                 y = kfy.filter_value(y)
-                speedXPixels = x #X speed in pixels
-                speedYPixels = y #Y speed in pixels
-                speedXMgsd = speedXPixels * gsd / (measurementTime - lastMeasurementTime)
-                speedXM = speedXPixels / (16 / (4 * 6) * 1000) * altitude * -3 / (measurementTime - lastMeasurementTime)
-                speedYMgsd = speedYPixels * gsd / (measurementTime - lastMeasurementTime)
-                speedYM = speedYPixels / (16 / (4 * 6) * 1000) * altitude * -3.25 / (measurementTime - lastMeasurementTime)
+
+                speedXgsd = x * gsd / (measurementTime - lastMeasurementTime)
+                speedYgsd = y * gsd / (measurementTime - lastMeasurementTime)
+                speedgsd = (speedXgsd ** 2 + speedYgsd ** 2) ** 0.5
+                speedXform = x / (16 / (4 * 6) * 1000) * altitude * -3 / (measurementTime - lastMeasurementTime)
+                speedYform = y / (16 / (4 * 6) * 1000) * altitude * -3.25 / (measurementTime - lastMeasurementTime)
+                speedform = (speedXform ** 2 + speedYform ** 2) ** 0.5
                 
                 """
                 foo_pub.publish(graph.update(x, y, count_time))
                 """
 
-                data_as = f'X: {round(speedXMgsd, 3)}  Y: {round(speedYMgsd, 3)}'
-                sys.stdout.write("\r" + "GSD  " + "X: " + "%.3f" % round(speedXMgsd, 3) + " Y: " + "%.3f" % round(speedYMgsd, 3) + "    FORM  " + "X: " + "%.3f" % round(speedXM, 3) + " Y: " + "%.3f" % round(speedYM, 3) + "    ALT  " + "%.3f" % round(altitude, 3) + " " * 4)
+                data_as = f'X: {round(speedXgsd, 3)}  Y: {round(speedYgsd, 3)}'
+                sys.stdout.write("\r" + "GSD  " + "X: " + "%.3f" % round(speedXgsd, 3) + " Y: " + "%.3f" % round(speedYgsd, 3) + " TOTAL: " + "%.3f" % round(speedgsd, 3) + "    FORM  " + "X: " + "%.3f" % round(speedXform, 3) + " Y: " + "%.3f" % round(speedYform, 3) + " TOTAL: " + "%.3f" % round(speedform, 3) + "    ALT  " + "%.3f" % round(altitude, 3) + " " * 4)
                 sys.stdout.flush()
                 foo_pub1.publish(data_as)
                 
@@ -70,20 +71,22 @@ if __name__ == "__main__":
                 measurementTime = time()
                 x = kfx.filter_value(x)
                 y = kfy.filter_value(y)
+
                 distanceXgsd = x * gsd
-                distanceX = x / (16 / (4 * 6) * 1000) * altitude * -3
                 distanceYgsd = y * gsd
-                distanceY = y / (16 / (4 * 6) * 1000) * altitude * -3.25
+                distanceXform = x / (16 / (4 * 6) * 1000) * altitude * -3
+                distanceYform = y / (16 / (4 * 6) * 1000) * altitude * -3.25
                 count_x_gsd += distanceXgsd
                 count_y_gsd += distanceYgsd
-                count_x += distanceX
-                count_y += distanceY
-                sys.stdout.write("\r" + "GSD  " + "X: " + "%.3f" % round(distanceXgsd, 3) + " Y: " + "%.3f" % round(distanceYgsd, 3) + "    FORM  " + "X: " + "%.3f" % round(distanceX, 3) + " Y: " + "%.3f" % round(distanceY, 3) + "    COUNTER_GSD  " + "X: " + "%.3f" % round(count_x_gsd, 3) + " Y: " + "%.3f" % round(count_y_gsd, 3) + "    COUNTER_FORM  " + "X: " + "%.3f" % round(count_x, 3) + " Y: " + "%.3f" % round(count_y, 3) + "    ALT  " + "%.3f" % round(altitude, 3) + " " * 4)
+                count_x_form += distanceXform
+                count_y_form += distanceYform
+
+                sys.stdout.write("\r" + "GSD  " + "X: " + "%.3f" % round(distanceXgsd, 3) + " Y: " + "%.3f" % round(distanceYgsd, 3) + "    FORM  " + "X: " + "%.3f" % round(distanceXform, 3) + " Y: " + "%.3f" % round(distanceYform, 3) + "    COUNTER_GSD  " + "X: " + "%.3f" % round(count_x_gsd, 3) + " Y: " + "%.3f" % round(count_y_gsd, 3) + "    COUNTER_FORM  " + "X: " + "%.3f" % round(count_x_form, 3) + " Y: " + "%.3f" % round(count_y_form, 3) + "    ALT  " + "%.3f" % round(altitude, 3) + " " * 4)
                 sys.stdout.flush()
 
             else:
                 print("available args: distance")
                 sys.exit()
 
-            count_time += (measurementTime - lastMeasurementTime) #This is the counter of the interval of polling the rangefinder sensor
+            count_time += (measurementTime - lastMeasurementTime) # the counter of the interval of polling the rangefinder sensor
             sleep(1 / measureSpeed)
