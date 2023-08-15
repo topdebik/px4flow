@@ -71,8 +71,8 @@ if __name__ == "__main__":
                 topicData = "GSD  " + "X: " + "%.3f" % round(speedXgsd, 3) + " Y: " + "%.3f" % round(speedYgsd, 3) + " TOTAL: " + "%.3f" % round(speedgsd, 3) + \
                             "    FORM  " + "X: " + "%.3f" % round(speedXform, 3) + " Y: " + "%.3f" % round(speedYform, 3) + " TOTAL: " + "%.3f" % round(speedform, 3) + \
                             "    GPS  " + "X: " + "%.3f" % round(x_gps, 3) + " Y: " + "%.3f" % round(y_gps, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3) + \
-                            "    DIFF GPS/GSD  " + "X: " +"%.3f" % round(x_gps - speedXgsd) + " Y: " + "%.3f" % round(y_gps - speedYgsd, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3) + \
-                            "    DIFF GPS/FORM  " + "X: " +"%.3f" % round(x_gps - speedXform) + " Y: " + "%.3f" % round(y_gps - speedYform, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3) + \
+                            "    DIFF GPS/GSD  " + "X: " +"%.3f" % round(x_gps - speedXgsd, 3) + " Y: " + "%.3f" % round(y_gps - speedYgsd, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3) + \
+                            "    DIFF GPS/FORM  " + "X: " +"%.3f" % round(x_gps - speedXform, 3) + " Y: " + "%.3f" % round(y_gps - speedYform, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3) + \
                             "    ALT  " + "%.3f" % round(altitude, 3) + \
                             " " * 4
 
@@ -80,8 +80,8 @@ if __name__ == "__main__":
                                 "GSD  " + "X: " + "%.3f" % round(speedXgsd, 3) + " Y: " + "%.3f" % round(speedYgsd, 3) + " TOTAL: " + "%.3f" % round(speedgsd, 3) + \
                                 "    FORM  " + "X: " + "%.3f" % round(speedXform, 3) + " Y: " + "%.3f" % round(speedYform, 3) + " TOTAL: " + "%.3f" % round(speedform, 3) + \
                                 "    GPS  " + "X: " + "%.3f" % round(x_gps, 3) + " Y: " + "%.3f" % round(y_gps, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3) + \
-                                "    DIFF GPS/GSD  " + "X: " +"%.3f" % round(x_gps - speedXgsd) + " Y: " + "%.3f" % round(y_gps - speedYgsd, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3) + \
-                                "    DIFF GPS/FORM  " + "X: " +"%.3f" % round(x_gps - speedXform) + " Y: " + "%.3f" % round(y_gps - speedYform, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3) + \
+                                "    DIFF GPS/GSD  " + "X: " +"%.3f" % round(x_gps - speedXgsd, 3) + " Y: " + "%.3f" % round(y_gps - speedYgsd, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3) + \
+                                "    DIFF GPS/FORM  " + "X: " +"%.3f" % round(x_gps - speedXform, 3) + " Y: " + "%.3f" % round(y_gps - speedYform, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3) + \
                                 "    ALT  " + "%.3f" % round(altitude, 3) + \
                                 " " * 4)
                 sys.stdout.flush()
