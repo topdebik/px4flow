@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 import RPi.GPIO as gpio
 from time import time, sleep
 import rospy
-from json import dumps
 from std_msgs.msg import String
 from sensor_msgs.msg import Image as msgImage
 from geometry_msgs.msg import TwistStamped
@@ -23,6 +23,7 @@ if __name__ == "__main__":
     rospy.init_node('px4flow_node')
     textTopic = rospy.Publisher('/px4flow/velocityString', String, queue_size=1)
     graphTopic = rospy.Publisher('/px4flow/velocityImage', msgImage, queue_size=1)
+    log = open(f"{round(time(), 3)}.txt", "w")
 
     measureSpeed = 10 # sensor pollings per second
     measurementTime = time()
@@ -53,9 +54,9 @@ if __name__ == "__main__":
                 y = kfy.filter_value(y)
 
                 speedXgsd = x * gsd / (measurementTime - lastMeasurementTime)
-                speedYgsd = y * gsd / (measurementTime - lastMeasurementTime)
+                speedYgsd = (y * gsd / (measurementTime - lastMeasurementTime)) * -1
                 speedgsd = (speedXgsd ** 2 + speedYgsd ** 2) ** 0.5
-                speedXform = x / (16 / (4 * 6) * 1000) * altitude * -3 / (measurementTime - lastMeasurementTime)
+                speedXform = x / (16 / (4 * 6) * 1000) * altitude * 3 / (measurementTime - lastMeasurementTime)
                 speedYform = y / (16 / (4 * 6) * 1000) * altitude * -3.25 / (measurementTime - lastMeasurementTime)
                 speedform = (speedXform ** 2 + speedYform ** 2) ** 0.5
                 
@@ -74,7 +75,8 @@ if __name__ == "__main__":
                             "    DIFF GPS/GSD  " + "X: " +"%.3f" % round(x_gps - speedXgsd, 3) + " Y: " + "%.3f" % round(y_gps - speedYgsd, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3) + \
                             "    DIFF GPS/FORM  " + "X: " +"%.3f" % round(x_gps - speedXform, 3) + " Y: " + "%.3f" % round(y_gps - speedYform, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3) + \
                             "    ALT  " + "%.3f" % round(altitude, 3) + \
-                            " " * 4
+                            " " * 4 + \
+                            "\n"
 
                 sys.stdout.write("\r" + \
                                 "GSD  " + "X: " + "%.3f" % round(speedXgsd, 3) + " Y: " + "%.3f" % round(speedYgsd, 3) + " TOTAL: " + "%.3f" % round(speedgsd, 3) + \
@@ -85,6 +87,9 @@ if __name__ == "__main__":
                                 "    ALT  " + "%.3f" % round(altitude, 3) + \
                                 " " * 4)
                 sys.stdout.flush()
+                log.write(f"{round(time(), 3)}    " + topicData)
+                log.flush()
+                os.fsync(log.fileno())
                 '''
                 topicData = json.dumps({
                     "GSD": {
