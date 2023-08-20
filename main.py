@@ -37,6 +37,9 @@ if __name__ == "__main__":
     kfx = kf()
     kfy = kf()
 
+    kfx_int = kf()
+    kfy_int = kf()
+
     kfx_gps = kf()
     kfy_gps = kf()
 
@@ -48,6 +51,13 @@ if __name__ == "__main__":
             
             if len(sys.argv) == 1:
                 lastMeasurementTime = measurementTime
+
+                #integral (compensated) measurement
+                intData = px4.update_integral()
+                speedXint = kfx_int.filter_value((intData[1] / 10 + intData[3] / 10) * (altitude * 10 ** -3) / intData[6])
+                speedYint = kfy_int.filter_value((intData[2] / 10 + intData[4] / 10) * (altitude * 10 ** -3) / intData[6])
+                speedint = (speedXint ** 2 + speedYint ** 2) ** 0.5
+
                 x, y = px4.update()[1:3]
                 measurementTime = time()
                 x = kfx.filter_value(x)
@@ -69,57 +79,69 @@ if __name__ == "__main__":
                 x_gps = kfx_gps.filter_value(gps.x)
                 y_gps = kfy_gps.filter_value(gps.y)
 
-                topicData = "GSD  " + "X: " + "%.3f" % round(speedXgsd, 3) + " Y: " + "%.3f" % round(speedYgsd, 3) + " TOTAL: " + "%.3f" % round(speedgsd, 3) + \
-                            "    FORM  " + "X: " + "%.3f" % round(speedXform, 3) + " Y: " + "%.3f" % round(speedYform, 3) + " TOTAL: " + "%.3f" % round(speedform, 3) + \
-                            "    GPS  " + "X: " + "%.3f" % round(x_gps, 3) + " Y: " + "%.3f" % round(y_gps, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3) + \
-                            "    DIFF GPS/GSD  " + "X: " +"%.3f" % round(x_gps - speedXgsd, 3) + " Y: " + "%.3f" % round(y_gps - speedYgsd, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3) + \
-                            "    DIFF GPS/FORM  " + "X: " +"%.3f" % round(x_gps - speedXform, 3) + " Y: " + "%.3f" % round(y_gps - speedYform, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3) + \
-                            "    ALT  " + "%.3f" % round(altitude, 3) + \
-                            " " * 4 + \
-                            "\n"
+                topicData = f"""\
+{'INT':<5}\
+{'X:':<3}{round(speedXint, 3):<8.3f}\
+{'Y:':<3}{round(speedYint, 3):<8.3f}\
+{'TOTAL:':<7}{round(speedint, 3):<9.3f}\
+{'GSD':<5}\
+{'X:':<3}{round(speedXgsd, 3):<8.3f}\
+{'Y:':<3}{round(speedYgsd, 3):<8.3f}\
+{'TOTAL:':<7}{round(speedgsd, 3):<9.3f}\
+{'FORM':<6}\
+{'X:':<3}{round(speedXform, 3):<8.3f}\
+{'Y:':<3}{round(speedYform, 3):<8.3f}\
+{'TOTAL:':<7}{round(speedform, 3):<9.3f}\
+{'GPS':<5}\
+{'X:':<3}{round(x_gps, 3):<8.3f}\
+{'Y:':<3}{round(y_gps, 3):<8.3f}\
+{'TOTAL:':<7}{round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3):<9.3f}\
+{'DIFF GPS/GSD':<14}\
+{'X:':<3}{round(x_gps - speedXgsd, 3):<8.3f}\
+{'Y:':<3}{round(y_gps - speedYgsd, 3):<8.3f}\
+{'TOTAL:':<7}{round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3):<9.3f}\
+{'DIFF GPS/FORM':<15}\
+{'X:':<3}{round(x_gps - speedXform, 3):<8.3f}\
+{'Y:':<3}{round(y_gps - speedYform, 3):<8.3f}\
+{'TOTAL:':<7}{round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3):<9.3f}\
+{'ALT':<5}\
+{round(altitude, 3):<8.3f}\
+\n"""
 
                 sys.stdout.write("\r" + \
-                                "GSD  " + "X: " + "%.3f" % round(speedXgsd, 3) + " Y: " + "%.3f" % round(speedYgsd, 3) + " TOTAL: " + "%.3f" % round(speedgsd, 3) + \
-                                "    FORM  " + "X: " + "%.3f" % round(speedXform, 3) + " Y: " + "%.3f" % round(speedYform, 3) + " TOTAL: " + "%.3f" % round(speedform, 3) + \
-                                "    GPS  " + "X: " + "%.3f" % round(x_gps, 3) + " Y: " + "%.3f" % round(y_gps, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3) + \
-                                "    DIFF GPS/GSD  " + "X: " +"%.3f" % round(x_gps - speedXgsd, 3) + " Y: " + "%.3f" % round(y_gps - speedYgsd, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3) + \
-                                "    DIFF GPS/FORM  " + "X: " +"%.3f" % round(x_gps - speedXform, 3) + " Y: " + "%.3f" % round(y_gps - speedYform, 3) + " TOTAL: " + "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3) + \
-                                "    ALT  " + "%.3f" % round(altitude, 3) + \
-                                " " * 4)
+                                f"""\
+{'INT':<5}\
+{'X:':<3}{round(speedXint, 3):<8.3f}\
+{'Y:':<3}{round(speedYint, 3):<8.3f}\
+{'TOTAL:':<7}{round(speedint, 3):<9.3f}\
+{'GSD':<5}\
+{'X:':<3}{round(speedXgsd, 3):<8.3f}\
+{'Y:':<3}{round(speedYgsd, 3):<8.3f}\
+{'TOTAL:':<7}{round(speedgsd, 3):<9.3f}\
+{'FORM':<6}\
+{'X:':<3}{round(speedXform, 3):<8.3f}\
+{'Y:':<3}{round(speedYform, 3):<8.3f}\
+{'TOTAL:':<7}{round(speedform, 3):<9.3f}\
+{'GPS':<5}\
+{'X:':<3}{round(x_gps, 3):<8.3f}\
+{'Y:':<3}{round(y_gps, 3):<8.3f}\
+{'TOTAL:':<7}{round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3):<9.3f}\
+{'DIFF GPS/GSD':<14}\
+{'X:':<3}{round(x_gps - speedXgsd, 3):<8.3f}\
+{'Y:':<3}{round(y_gps - speedYgsd, 3):<8.3f}\
+{'TOTAL:':<7}{round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3):<9.3f}\
+{'DIFF GPS/FORM':<15}\
+{'X:':<3}{round(x_gps - speedXform, 3):<8.3f}\
+{'Y:':<3}{round(y_gps - speedYform, 3):<8.3f}\
+{'TOTAL:':<7}{round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3):<9.3f}\
+{'ALT':<5}\
+{round(altitude, 3):<8.3f}\
+\n""")
                 sys.stdout.flush()
-                log.write(f"{round(time(), 3)}    " + topicData)
+
+                log.write(f"{round(time(), 3):17.3f}" + topicData)
                 log.flush()
                 os.fsync(log.fileno())
-                '''
-                topicData = json.dumps({
-                    "GSD": {
-                        "X": "%.3f" % round(speedXgsd, 3),
-                        "Y": "%.3f" % round(speedYgsd, 3),
-                        "TOTAL": "%.3f" % round(speedgsd, 3)
-                        },
-                    "FORM": {
-                        "X": "%.3f" % round(speedXform, 3),
-                        "Y": "%.3f" % round(speedYform, 3),
-                        "TOTAL": "%.3f" % round(speedform, 3)
-                        },
-                    "GPS": {
-                        "X": "%.3f" % round(x_gps, 3),
-                        "Y": "%.3f" % round(y_gps, 3),
-                        "TOTAL": "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3)
-                        },
-                    "DIFF GPS/GSD": {
-                        "X": "%.3f" % round(x_gps - speedXgsd, 3),
-                        "Y": "%.3f" % round(y_gps - speedYgsd, 3),
-                        "TOTAL": "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3)
-                        },
-                    "DIFF GPS/FORM": {
-                        "X": "%.3f" % round(x_gps - speedXform, 3),
-                        "Y": "%.3f" % round(y_gps - speedYform, 3),
-                        "TOTAL": "%.3f" % round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3)
-                        },
-                    "ALT": "%.3f" % round(altitude, 3)
-                })
-                '''
                 textTopic.publish(topicData)
                 
                 
