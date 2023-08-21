@@ -23,7 +23,7 @@ if __name__ == "__main__":
     rospy.init_node('px4flow_node')
     textTopic = rospy.Publisher('/px4flow/velocityString', String, queue_size=1)
     graphTopic = rospy.Publisher('/px4flow/velocityImage', msgImage, queue_size=1)
-    log = open(f"{round(time(), 3)}.txt", "w")
+    log = open(f"/home/pi/{round(time(), 3)}.txt", "w")
 
     measureSpeed = 10 # sensor pollings per second
     measurementTime = time()
@@ -45,7 +45,7 @@ if __name__ == "__main__":
 
     while True:
             altitude = distanceSensor.get_distance()
-            gsd = 4.51 * ((altitude * 10 ** 3) / 12) / (758 / 4) * 10 ** -3 #ground sampling distance in meters/pixel
+            gsd = 4.51 * ((altitude * 10 ** 3) / 16) / (758 / 4) * 10 ** -3 #ground sampling distance in meters/pixel
 
             # speed measurement
             
@@ -54,8 +54,12 @@ if __name__ == "__main__":
 
                 #integral (compensated) measurement
                 intData = px4.update_integral()
-                speedXint = kfx_int.filter_value((intData[1] / 10 + intData[3] / 10) * (altitude * 10 ** -3) / intData[6])
-                speedYint = kfy_int.filter_value((intData[2] / 10 + intData[4] / 10) * (altitude * 10 ** -3) / intData[6])
+                if abs(intData[10]) < 100 or intData[6] == 0:
+                     speedXint = 0
+                     speedYint = 0
+                else:
+                    speedXint = kfx_int.filter_value((intData[1] / 10 + intData[3] / 10) * (altitude * 10 ** -3) / intData[6])
+                    speedYint = kfy_int.filter_value((intData[2] / 10 + intData[4] / 10) * (altitude * 10 ** -3) / intData[6])
                 speedint = (speedXint ** 2 + speedYint ** 2) ** 0.5
 
                 x, y = px4.update()[1:3]
@@ -74,10 +78,13 @@ if __name__ == "__main__":
                 graphTopic.publish(graph.update(x, y, count_time))
                 """
 
-                gps = rospy.wait_for_message("/mavros/global_position/raw/gps_vel", TwistStamped, timeout=0.5).twist.linear
-
-                x_gps = kfx_gps.filter_value(gps.x)
-                y_gps = kfy_gps.filter_value(gps.y)
+                try:
+                    gps = rospy.wait_for_message("/mavros/global_position/raw/gps_vel", TwistStamped, timeout=0.5).twist.linear
+                    x_gps = kfx_gps.filter_value(gps.x)
+                    y_gps = kfy_gps.filter_value(gps.y)
+                except rospy.exceptions.ROSException:
+                    x_gps = 0
+                    y_gps = 0
 
                 topicData = f"""\
 {'INT':<5}\
@@ -135,11 +142,10 @@ if __name__ == "__main__":
 {'Y:':<3}{round(y_gps - speedYform, 3):<8.3f}\
 {'TOTAL:':<7}{round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3):<9.3f}\
 {'ALT':<5}\
-{round(altitude, 3):<8.3f}\
-\n""")
+{round(altitude, 3):<8.3f}""")
                 sys.stdout.flush()
 
-                log.write(f"{round(time(), 3):17.3f}" + topicData)
+                log.write(f"{round(time(), 3):<17.3f}" + topicData)
                 log.flush()
                 os.fsync(log.fileno())
                 textTopic.publish(topicData)

@@ -28,7 +28,7 @@ class PX4Flow:
 
     def update_integral(self):
         self.BUS.write_byte_data(self.ADDRESS, 0x00, 0x16)
-        data = list(map(lambda x: hex(x)[2:], self.BUS.read_i2c_block_data(self.ADDRESS, 0x00, 26)))
+        data = list(map(lambda x: hex(x)[2:], self.BUS.read_i2c_block_data(self.ADDRESS, 0x00, 27)))
 
         frame_count_since_last_readout = shift16(int(data[1] + data[0], 16))
         pixel_flow_x_integral = shift16(int(data[3] + data[2], 16))
