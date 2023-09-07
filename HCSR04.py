@@ -21,11 +21,11 @@ class HCSR04:
         while gpio.input(self.echo) == gpio.LOW:
             start = time()
             if start - trigStart >= 0.07:
-                return self.distance * 10 ** -2
+                return self.distance * 10**-2
         while gpio.input(self.echo) == gpio.HIGH:
             stop = time()
         self.distance = (stop - start) * 17150
-        return self.distance * 10 ** -2
-    
+        return self.distance * 10**-2
+
     def get_distance_filtered(self):
         return self.kfd.filter_value(self.get_distance())

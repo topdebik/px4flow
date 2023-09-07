@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
             # integral (compensated) measurement
             intData = px4.update_integral()
-            if abs(intData[10]) < 100 or intData[6] == 0:
+            if intData[6] == 0:
                 speedXint = 0
                 speedYint = 0
             else:
@@ -141,34 +141,7 @@ if __name__ == "__main__":
 {round(altitude, 3):<8.3f}\
 \n"""
 
-            sys.stdout.write("\r" +
-                             f"""\
-{'INT':<5}\
-{'X:':<3}{round(speedXint, 3):<8.3f}\
-{'Y:':<3}{round(speedYint, 3):<8.3f}\
-{'TOTAL:':<7}{round(speedint, 3):<9.3f}\
-{'GSD':<5}\
-{'X:':<3}{round(speedXgsd, 3):<8.3f}\
-{'Y:':<3}{round(speedYgsd, 3):<8.3f}\
-{'TOTAL:':<7}{round(speedgsd, 3):<9.3f}\
-{'FORM':<6}\
-{'X:':<3}{round(speedXform, 3):<8.3f}\
-{'Y:':<3}{round(speedYform, 3):<8.3f}\
-{'TOTAL:':<7}{round(speedform, 3):<9.3f}\
-{'GPS':<5}\
-{'X:':<3}{round(x_gps, 3):<8.3f}\
-{'Y:':<3}{round(y_gps, 3):<8.3f}\
-{'TOTAL:':<7}{round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3):<9.3f}\
-{'DIFF GPS/GSD':<14}\
-{'X:':<3}{round(x_gps - speedXgsd, 3):<8.3f}\
-{'Y:':<3}{round(y_gps - speedYgsd, 3):<8.3f}\
-{'TOTAL:':<7}{round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3):<9.3f}\
-{'DIFF GPS/FORM':<15}\
-{'X:':<3}{round(x_gps - speedXform, 3):<8.3f}\
-{'Y:':<3}{round(y_gps - speedYform, 3):<8.3f}\
-{'TOTAL:':<7}{round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3):<9.3f}\
-{'ALT':<5}\
-{round(altitude, 3):<8.3f}""")
+            sys.stdout.write("\r" + topicData[:-1])
             sys.stdout.flush()
 
             logger.log(data)
