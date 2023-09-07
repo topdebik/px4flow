@@ -20,11 +20,9 @@ if __name__ == "__main__":
     px4 = PX4Flow()
     distanceSensor = TF03()
     graph = graph()
-    rospy.init_node('px4flow_node')
-    textTopic = rospy.Publisher(
-        '/px4flow/velocityString', String, queue_size=1)
-    graphTopic = rospy.Publisher(
-        '/px4flow/velocityImage', msgImage, queue_size=1)
+    rospy.init_node("px4flow_node")
+    textTopic = rospy.Publisher("/px4flow/velocityString", String, queue_size=1)
+    graphTopic = rospy.Publisher("/px4flow/velocityImage", msgImage, queue_size=1)
 
     logger = Logger()
 
@@ -48,8 +46,9 @@ if __name__ == "__main__":
 
     while True:
         altitude = distanceSensor.get_distance()
-        gsd = 4.51 * ((altitude * 10 ** 3) / 16) / (758 / 4) * \
-            10 ** -3  # ground sampling distance in meters/pixel
+        gsd = (
+            4.51 * ((altitude * 10**3) / 16) / (758 / 4) * 10**-3
+        )  # ground sampling distance in meters/pixel
 
         # speed measurement
 
@@ -63,25 +62,31 @@ if __name__ == "__main__":
                 speedYint = 0
             else:
                 speedXint = kfx_int.filter_value(
-                    (intData[1] / 10 + intData[3] / 10) * (altitude * 10 ** -3) / intData[6])
+                    (intData[1] / 10 + intData[3] / 10)
+                    * (altitude * 10**3)
+                    / intData[6]
+                )
                 speedYint = kfy_int.filter_value(
-                    (intData[2] / 10 + intData[4] / 10) * (altitude * 10 ** -3) / intData[6])
-            speedint = (speedXint ** 2 + speedYint ** 2) ** 0.5
+                    (intData[2] / 10 + intData[4] / 10)
+                    * (altitude * 10**3)
+                    / intData[6]
+                )
+            speedint = (speedXint**2 + speedYint**2) ** 0.5
 
-            x, y = px4.update()[1:3]
+            frame = px4.update()
+            x = frame[1] / 10
+            y = frame[2] / 10
+            timespan = frame[10] / 1000
             measurementTime = time()
             x = kfx.filter_value(x)
             y = kfy.filter_value(y)
 
-            speedXgsd = x * gsd / (measurementTime - lastMeasurementTime)
-            speedYgsd = (y * gsd / (measurementTime -
-                         lastMeasurementTime)) * -1
-            speedgsd = (speedXgsd ** 2 + speedYgsd ** 2) ** 0.5
-            speedXform = x / (16 / (4 * 6) * 1000) * altitude * \
-                3 / (measurementTime - lastMeasurementTime)
-            speedYform = y / (16 / (4 * 6) * 1000) * altitude * - \
-                3.25 / (measurementTime - lastMeasurementTime)
-            speedform = (speedXform ** 2 + speedYform ** 2) ** 0.5
+            speedXgsd = x * gsd / timespan
+            speedYgsd = (y * gsd / timespan) * -1
+            speedgsd = (speedXgsd**2 + speedYgsd**2) ** 0.5
+            speedXform = x / (16 / (4 * 6) * 1000) * altitude * 3 / timespan
+            speedYform = y / (16 / (4 * 6) * 1000) * altitude * -3.25 / timespan
+            speedform = (speedXform**2 + speedYform**2) ** 0.5
 
             """
                 graphTopic.publish(graph.update(x, y, count_time))
@@ -89,7 +94,8 @@ if __name__ == "__main__":
 
             try:
                 gps = rospy.wait_for_message(
-                    "/mavros/global_position/raw/gps_vel", TwistStamped, timeout=0.5).twist.linear
+                    "/mavros/global_position/raw/gps_vel", TwistStamped, timeout=0.5
+                ).twist.linear
                 x_gps = kfx_gps.filter_value(gps.x)
                 y_gps = kfy_gps.filter_value(gps.y)
             except rospy.exceptions.ROSException:
@@ -97,19 +103,25 @@ if __name__ == "__main__":
                 y_gps = 0
 
             data = [
-                str(round(speedXint, 3)), str(
-                    round(speedYint, 3)), str(round(speedint, 3)),
-                str(round(speedXgsd, 3)), str(
-                    round(speedYgsd, 3)), str(round(speedgsd, 3)),
-                str(round(speedXform, 3)), str(
-                    round(speedYform, 3)), str(round(speedform, 3)),
-                str(round(x_gps, 3)), str(round(y_gps, 3)), str(
-                    round((x_gps ** 2 + y_gps ** 2) ** 0.5, 3)),
-                str(round(x_gps - speedXgsd, 3)), str(round(y_gps - speedYgsd, 3)
-                                                      ), str(round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedgsd, 3)),
-                str(round(x_gps - speedXform, 3)), str(round(y_gps - speedYform, 3)
-                                                       ), str(round((x_gps ** 2 + y_gps ** 2) ** 0.5 - speedform, 3)),
-                str(round(altitude, 3))
+                str(round(speedXint, 3)),
+                str(round(speedYint, 3)),
+                str(round(speedint, 3)),
+                str(round(speedXgsd, 3)),
+                str(round(speedYgsd, 3)),
+                str(round(speedgsd, 3)),
+                str(round(speedXform, 3)),
+                str(round(speedYform, 3)),
+                str(round(speedform, 3)),
+                str(round(x_gps, 3)),
+                str(round(y_gps, 3)),
+                str(round((x_gps**2 + y_gps**2) ** 0.5, 3)),
+                str(round(x_gps - speedXgsd, 3)),
+                str(round(y_gps - speedYgsd, 3)),
+                str(round((x_gps**2 + y_gps**2) ** 0.5 - speedgsd, 3)),
+                str(round(x_gps - speedXform, 3)),
+                str(round(y_gps - speedYform, 3)),
+                str(round((x_gps**2 + y_gps**2) ** 0.5 - speedform, 3)),
+                str(round(altitude, 3)),
             ]
 
             topicData = f"""\
@@ -164,13 +176,32 @@ if __name__ == "__main__":
             count_x_form += distanceXform
             count_y_form += distanceYform
 
-            sys.stdout.write("\r" +
-                             "GSD  " + "X: " + "%.3f" % round(distanceXgsd, 3) + " Y: " + "%.3f" % round(distanceYgsd, 3) +
-                             "    FORM  " + "X: " + "%.3f" % round(distanceXform, 3) + " Y: " + "%.3f" % round(distanceYform, 3) +
-                             "    COUNTER_GSD  " + "X: " + "%.3f" % round(count_x_gsd, 3) + " Y: " + "%.3f" % round(count_y_gsd, 3) +
-                             "    COUNTER_FORM  " + "X: " + "%.3f" % round(count_x_form, 3) + " Y: " + "%.3f" % round(count_y_form, 3) +
-                             "    ALT  " + "%.3f" % round(altitude, 3) +
-                             " " * 4)
+            sys.stdout.write(
+                "\r"
+                + "GSD  "
+                + "X: "
+                + "%.3f" % round(distanceXgsd, 3)
+                + " Y: "
+                + "%.3f" % round(distanceYgsd, 3)
+                + "    FORM  "
+                + "X: "
+                + "%.3f" % round(distanceXform, 3)
+                + " Y: "
+                + "%.3f" % round(distanceYform, 3)
+                + "    COUNTER_GSD  "
+                + "X: "
+                + "%.3f" % round(count_x_gsd, 3)
+                + " Y: "
+                + "%.3f" % round(count_y_gsd, 3)
+                + "    COUNTER_FORM  "
+                + "X: "
+                + "%.3f" % round(count_x_form, 3)
+                + " Y: "
+                + "%.3f" % round(count_y_form, 3)
+                + "    ALT  "
+                + "%.3f" % round(altitude, 3)
+                + " " * 4
+            )
             sys.stdout.flush()
 
         else:
@@ -178,5 +209,5 @@ if __name__ == "__main__":
             sys.exit()
 
         # the counter of the interval of polling the rangefinder sensor
-        count_time += (measurementTime - lastMeasurementTime)
+        count_time += measurementTime - lastMeasurementTime
         sleep(1 / measureSpeed)
