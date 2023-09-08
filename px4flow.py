@@ -6,6 +6,7 @@ class PX4Flow:
     def __init__(self, bus=1):
         self.ADDRESS = 0x42
         self.BUS = SMBus(bus)
+        self.prev_framespan = 0
 
     def update(self):
         self.BUS.write_byte_data(self.ADDRESS, 0x00, 0x0)
@@ -28,6 +29,12 @@ class PX4Flow:
         gyro_range = shift8(int(data[18], 16))
         sonar_timestamp = shift8(int(data[19], 16))
         ground_distance = shift16(int(data[21] + data[20], 16))
+
+        #calculate framespan and integrate pixel flows
+        #framespan = frame_count - self.prev_framespan
+        #self.prev_framespan = frame_count
+        #integrated_pixel_flow_x = pixel_flow_x_sum * framespan / 10
+        #integrated_pixel_flow_y = pixel_flow_y_sum * framespan / 10
 
         return (
             frame_count,

@@ -28,7 +28,11 @@ class Logger:
             "DIFF GPS/FORM: TOTAL",
             "ALT",
         ]
-        self.file = open(f"{self.time_now()}.csv", mode="w", newline="")
+        try:
+            filename = str(int(list(filter(lambda x: x.endswith(".csv"), os.listdir()))[-1][:-4]) + 1)
+        except:
+            filename = "0"
+        self.file = open(f"/home/pi/{filename}.csv", mode="w", newline="")
         self.writer = csv.writer(self.file)
         self.writer.writerow(self.headers)
         self.file.flush()
@@ -45,5 +49,5 @@ class Logger:
         return str(time.time()).split(".")[0]
 
     def timestamp(self):
-        local = datetime.datetime.now().isoformat()
+        local = datetime.datetime.now().isoformat(sep=" ")[11:-3]
         return local

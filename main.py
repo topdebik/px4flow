@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 
 import sys
+sys.path.insert(1, "/opt/ros/noetic/lib/python3/dist-packages")
 import RPi.GPIO as gpio
 from time import time, sleep
-import rospy
-from std_msgs.msg import String
-from sensor_msgs.msg import Image as msgImage
-from geometry_msgs.msg import TwistStamped
 from px4flow import PX4Flow
 from TF03 import TF03
 from kf import kf
 from graph import graph
 from Logger import Logger
+import rospy
+from std_msgs.msg import String
+from sensor_msgs.msg import Image as msgImage
+from geometry_msgs.msg import TwistStamped
 
 
 if __name__ == "__main__":
@@ -19,14 +20,14 @@ if __name__ == "__main__":
     gpio.setmode(gpio.BCM)
     px4 = PX4Flow()
     distanceSensor = TF03()
-    graph = graph()
+    #graph = graph()
     rospy.init_node("px4flow_node")
     textTopic = rospy.Publisher("/px4flow/velocityString", String, queue_size=1)
-    graphTopic = rospy.Publisher("/px4flow/velocityImage", msgImage, queue_size=1)
+    #graphTopic = rospy.Publisher("/px4flow/velocityImage", msgImage, queue_size=1)
 
     logger = Logger()
 
-    measureSpeed = 10  # sensor pollings per second
+    measureSpeed = 5  # sensor pollings per second
     measurementTime = time()
     count_time = 0
 
@@ -56,41 +57,36 @@ if __name__ == "__main__":
             lastMeasurementTime = measurementTime
 
             # integral (compensated) measurement
-            intData = px4.update_integral()
-            if intData[6] == 0:
+            frame_integral = px4.update_integral()
+            if frame_integral[6] == 0:
                 speedXint = 0
                 speedYint = 0
             else:
                 speedXint = kfx_int.filter_value(
-                    (intData[1] / 10 + intData[3] / 10)
+                    (frame_integral[1] / 10 + frame_integral[3] / 10)
                     * (altitude * 10**3)
-                    / intData[6]
+                    / frame_integral[6]
                 )
                 speedYint = kfy_int.filter_value(
-                    (intData[2] / 10 + intData[4] / 10)
+                    (frame_integral[2] / 10 + frame_integral[4] / 10)
                     * (altitude * 10**3)
-                    / intData[6]
+                    / frame_integral[6]
                 )
             speedint = (speedXint**2 + speedYint**2) ** 0.5
 
-            frame = px4.update()
-            x = frame[1] / 10
-            y = frame[2] / 10
-            timespan = frame[10] / 1000
+            x, y = px4.update()[1:3]
             measurementTime = time()
             x = kfx.filter_value(x)
             y = kfy.filter_value(y)
 
-            speedXgsd = x * gsd / timespan
-            speedYgsd = (y * gsd / timespan) * -1
+            speedXgsd = x * gsd / (measurementTime - lastMeasurementTime)
+            speedYgsd = (y * gsd / (measurementTime - lastMeasurementTime)) * -1
             speedgsd = (speedXgsd**2 + speedYgsd**2) ** 0.5
-            speedXform = x / (16 / (4 * 6) * 1000) * altitude * 3 / timespan
-            speedYform = y / (16 / (4 * 6) * 1000) * altitude * -3.25 / timespan
+            speedXform = x / (16 / (4 * 6) * 1000) * altitude * 3 / (measurementTime - lastMeasurementTime)
+            speedYform = y / (16 / (4 * 6) * 1000) * altitude * -3.25 / (measurementTime - lastMeasurementTime)
             speedform = (speedXform**2 + speedYform**2) ** 0.5
 
-            """
-                graphTopic.publish(graph.update(x, y, count_time))
-                """
+            #graphTopic.publish(graph.update(x, y, count_time))
 
             try:
                 gps = rospy.wait_for_message(
