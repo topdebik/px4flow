@@ -48,7 +48,7 @@ if __name__ == "__main__":
     while True:
         altitude = distanceSensor.get_distance()
         gsd = (
-            4.51 * ((altitude * 10**3) / 16) / (758 / 4) * 10**-3
+            4.51 * ((altitude * 10**3) / 16) / (758 / 4) * 3 * 10**-3
         )  # ground sampling distance in meters/pixel
 
         # speed measurement
@@ -79,11 +79,11 @@ if __name__ == "__main__":
             x = kfx.filter_value(x)
             y = kfy.filter_value(y)
 
-            speedXgsd = x * gsd / (measurementTime - lastMeasurementTime)
-            speedYgsd = (y * gsd / (measurementTime - lastMeasurementTime)) * -1
+            speedXgsd = x * gsd / (measurementTime - lastMeasurementTime) * -1
+            speedYgsd = (y * gsd / (measurementTime - lastMeasurementTime))
             speedgsd = (speedXgsd**2 + speedYgsd**2) ** 0.5
-            speedXform = x / (16 / (4 * 6) * 1000) * altitude * 3 / (measurementTime - lastMeasurementTime)
-            speedYform = y / (16 / (4 * 6) * 1000) * altitude * -3.25 / (measurementTime - lastMeasurementTime)
+            speedXform = x / (16 / (4 * 6) * 1000) * altitude * -3 / (measurementTime - lastMeasurementTime)
+            speedYform = y / (16 / (4 * 6) * 1000) * altitude * 3.25 / (measurementTime - lastMeasurementTime)
             speedform = (speedXform**2 + speedYform**2) ** 0.5
 
             #graphTopic.publish(graph.update(x, y, count_time))
@@ -163,10 +163,10 @@ if __name__ == "__main__":
             x = kfx.filter_value(x)
             y = kfy.filter_value(y)
 
-            distanceXgsd = x * gsd
+            distanceXgsd = x * gsd * -1
             distanceYgsd = y * gsd
             distanceXform = x / (16 / (4 * 6) * 1000) * altitude * -3
-            distanceYform = y / (16 / (4 * 6) * 1000) * altitude * -3.25
+            distanceYform = y / (16 / (4 * 6) * 1000) * altitude * 3.25
             count_x_gsd += distanceXgsd
             count_y_gsd += distanceYgsd
             count_x_form += distanceXform

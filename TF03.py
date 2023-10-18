@@ -7,12 +7,15 @@ class TF03:
         self.BUS = Serial(port, 115200, timeout=0.05)
         self.kfd = kf()
 
-        self.distance = 0
+        self.distance = 100
 
     def get_distance(self):
         self.BUS.reset_input_buffer()
-        self.BUS.read_until(b"\x59")
-        data = self.BUS.read(8)
+        try:
+            self.BUS.read_until(b"\x59")
+            data = self.BUS.read(8)
+        except:
+            return self.distance * 10**-2
 
         if len(data) < 8:
             return self.distance * 10**-2
